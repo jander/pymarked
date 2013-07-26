@@ -71,15 +71,17 @@ class FileTestCase(unittest.TestCase):
 def repeat_macro(body, environ, **kwargs):
     return (body+' ') * int(kwargs['count'])
 
+
 def hello_macro(body, environ, **kwargs):
     return 'Hello'
+
 
 class MacroTestCase(unittest.TestCase):
     def runTest(self):
         text = '''<<repeat count="2">>
             <<hello/>> tom
         <</repeat>>'''
-        output = marked(text, None,
+        output = marked(text,
                         macros=dict(repeat=repeat_macro),
                         inline_macros=dict(hello=hello_macro))
         self.assertEquals(output, 'Hello tom Hello tom ')
@@ -87,6 +89,7 @@ class MacroTestCase(unittest.TestCase):
 
 def environ_macro(body, environ, **kwargs):
     return environ
+
 
 class EnvironTestCase(unittest.TestCase):
     def runTest(self):

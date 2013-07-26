@@ -37,7 +37,7 @@ usage
 options
 -------
 
-`marked(src, **options)` function parse markdown src to html.
+`def marked(text, environ=None, **options):` function parse markdown src to html.
 use options to control how to parse:
 
 - __gfm__:
@@ -106,13 +106,13 @@ use options to control how to parse:
 
   Type: `dict`  Default: `{}`
 
-  Enalbe block macros, see `test.MacroTestCase`
+  set block macros, see `test.MacroTestCase`
 
 - __inline_macros__:
 
   Type: `dict`  Default: `{}`
 
-  Enalbe inline macros, see `test.MacroTestCase`
+  set inline macros, see `test.MacroTestCase`
 
 
 License

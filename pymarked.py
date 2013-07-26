@@ -403,7 +403,7 @@ defaults = dict(
     smartLists=True,
     langPrefix='lang-',
     smartypants=False,
-    wikilink=lambda groups: '<a href="{href}" class="wiki">{text}</a>'.format(
+    wikilink=lambda groups, environ: '<a href="{href}" class="wiki">{text}</a>'.format(
         href=groups.wikilink_name,
         text=groups.get('wikilink_text', None) or groups.wikilink_name),
     header_id=False,
@@ -813,7 +813,7 @@ class InlineParser(MacroMixin):
         return self._do_parse_link(link)
 
     def _parse_wikilink(self, groups, environ=None):
-        return self.options.wikilink(groups)
+        return self.options.wikilink(groups, environ)
 
     def _parse_strong(self, groups, environ=None):
         text = groups.get('strong_1', None) or groups.get('strong_2', None)
