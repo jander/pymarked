@@ -95,7 +95,7 @@ use options to control how to parse:
   Default:
 
   ```
-  lambda groups: '<a href="{href}" class="wiki">{text}</a>'.format(
+  lambda groups, environ: '<a href="{href}" class="wiki">{text}</a>'.format(
         href=groups.wikilink_name,
         text=groups.get('wikilink_text', None) or groups.wikilink_name)
   ```
