@@ -9,7 +9,7 @@ usage
 ### simple example
 
 ```python
->>> from marked import marked
+>>> from pymarked import marked
 
 >>> print marked('I am using __markdown__.')
 
