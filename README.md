@@ -19,7 +19,7 @@ usage
 ### options usage example
 
 ```python
->>> src = """html
+>>> src = """
     <h1>Title1</h1>
     <p>a paragraph</p>
 """
