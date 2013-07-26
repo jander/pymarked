@@ -20,8 +20,8 @@ usage
 
 ```python
 >>> src = """html
-<h1>Title1</h1>
-<p>a paragraph</p>
+    <h1>Title1</h1>
+    <p>a paragraph</p>
 """
 
 >>> print marked(src, gfm=True, langPrefix='x-')
