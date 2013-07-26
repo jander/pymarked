@@ -44,9 +44,7 @@ class BlockRule(object):
                     (?:[ ]+\S+="\S+"[ ]*)*
                 )
             >>
-                \s*
-                (?P<macro_body>[\s\S]+?)
-                \s*
+                \s*(?P<macro_body>[\s\S]+?)\s*
             <</(?P=macro_name)>>
         )
     '''
@@ -674,18 +672,22 @@ def escape(html, encode=False):
     return html
 
 
-class Macro(object):
-    def execute(self, **kwargs):
-        raise NotImplementedError()
-
-
 class MacroMixin(object):
-    rule_marco_attrs = re.compile(r'(\S+)="(\S+)"')
+    rule_marco_attrs = re.compile(r'(\S+)="([^"]+)"')
     macros = pdict()
 
-    def register_macro(self, name, macro_type):
-        assert issubclass(macro_type, Macro)
-        self.macros[name] = macro_type()
+    def register_macro(self, name, func):
+        """register a func to macro by name, func should take the signature:
+        ```
+        def macro_function(body, **kwargs):
+        ```
+
+        body: the macro content. for the inline macro, body is None.
+
+        kwargs: the macro attrs.
+
+        """
+        self.macros[name] = func
 
     def call_macro(self, groups):
         name = groups.macro_name
@@ -694,8 +696,7 @@ class MacroMixin(object):
             for m in self.rule_marco_attrs.finditer(groups.macro_attrs):
                 key, val = m.group(1, 2)
                 parameters[key] = val
-        parameters.macro_body = groups.get('macro_body', None)
-        return self.macros[name].execute(**parameters)
+        return self.macros[name](groups.get('macro_body', None), **parameters)
 
 
 class InlineParser(MacroMixin):

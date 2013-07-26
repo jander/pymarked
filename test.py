@@ -6,7 +6,7 @@ import re
 import glob
 import logging
 
-from pymarked import marked, defaults, pdict, Macro
+from pymarked import marked, defaults, pdict
 
 
 class FileTestCase(unittest.TestCase):
@@ -67,25 +67,22 @@ class FileTestCase(unittest.TestCase):
         self.assert_mk_equals(self.textpath, htmlpath)
 
 
-class RepeatMacro(Macro):
-    def execute(self, **kwargs):
-        return kwargs['macro_body'] * int(kwargs['count'])
 
+def repeat_macro(body, **kwargs):
+    return (body+' ') * int(kwargs['count'])
 
-class HelloInlineMacro(Macro):
-    def execute(self, **kwargs):
-        return "Hello"
-
+def hello_macro(body, **kwargs):
+    return 'Hello'
 
 class MacroTestCase(unittest.TestCase):
     def runTest(self):
         text = '''<<repeat count="2">>
-        <<Hello/>> tom
+            <<hello/>> tom
         <</repeat>>'''
         output = marked(text,
-                        macros=dict(repeat=RepeatMacro),
-                        inline_macros=dict(Hello=HelloInlineMacro))
-        self.assertEquals(output, 'Hello tomHello tom')
+                        macros=dict(repeat=repeat_macro),
+                        inline_macros=dict(hello=hello_macro))
+        self.assertEquals(output, 'Hello tom Hello tom ')
 
 
 def suite():
