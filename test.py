@@ -50,7 +50,7 @@ class FileTestCase(unittest.TestCase):
 
     def assert_mk_equals(self, textpath, htmlpath):
         filename = basename(textpath)
-        output = marked(self.read(textpath), **self.get_options(filename))
+        output = marked(self.read(textpath), None, **self.get_options(filename))
         wanted = self.read(htmlpath)
         dir = basename(dirname(textpath))
         if dir == 'basic':
@@ -68,10 +68,10 @@ class FileTestCase(unittest.TestCase):
 
 
 
-def repeat_macro(body, **kwargs):
+def repeat_macro(body, environ, **kwargs):
     return (body+' ') * int(kwargs['count'])
 
-def hello_macro(body, **kwargs):
+def hello_macro(body, environ, **kwargs):
     return 'Hello'
 
 class MacroTestCase(unittest.TestCase):
@@ -79,10 +79,23 @@ class MacroTestCase(unittest.TestCase):
         text = '''<<repeat count="2">>
             <<hello/>> tom
         <</repeat>>'''
-        output = marked(text,
+        output = marked(text, None,
                         macros=dict(repeat=repeat_macro),
                         inline_macros=dict(hello=hello_macro))
         self.assertEquals(output, 'Hello tom Hello tom ')
+
+
+def environ_macro(body, environ, **kwargs):
+    return environ
+
+class EnvironTestCase(unittest.TestCase):
+    def runTest(self):
+        text='''<<environ>>
+        <</environ>>'''
+
+        environ_value = 'ok'
+        output = marked(text, environ=environ_value, macros=dict(environ=environ_macro))
+        self.assertEquals(output, environ_value)
 
 
 def suite():
@@ -100,7 +113,7 @@ def suite():
     tests = glob.glob(path)
     suite.addTests(FileTestCase(test) for test in tests)
 
-    suite.addTests([MacroTestCase()])
+    suite.addTests([MacroTestCase(), EnvironTestCase()])
     return suite
 
 

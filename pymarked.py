@@ -676,27 +676,32 @@ class MacroMixin(object):
     rule_marco_attrs = re.compile(r'(\S+)="([^"]+)"')
     macros = pdict()
 
+    def set_environ(self, environ):
+        self.environ = environ
+
     def register_macro(self, name, func):
         """register a func to macro by name, func should take the signature:
         ```
-        def macro_function(body, **kwargs):
+        def macro_function(body, environ=None, **kwargs):
         ```
 
         body: the macro content. for the inline macro, body is None.
+
+        environ: object that may by used by macros
 
         kwargs: the macro attrs.
 
         """
         self.macros[name] = func
 
-    def call_macro(self, groups):
+    def call_macro(self, groups, environ=None):
         name = groups.macro_name
         parameters = pdict()
         if groups.macro_attrs:
             for m in self.rule_marco_attrs.finditer(groups.macro_attrs):
                 key, val = m.group(1, 2)
                 parameters[key] = val
-        return self.macros[name](groups.get('macro_body', None), **parameters)
+        return self.macros[name](groups.get('macro_body', None), environ, **parameters)
 
 
 class InlineParser(MacroMixin):
@@ -720,7 +725,7 @@ class InlineParser(MacroMixin):
 
         self.links = links
 
-    def parse(self, src):
+    def parse(self, src, environ=None):
         buffer = []
         while len(src) > 0:
             match = self.rule.match(src)
@@ -749,7 +754,7 @@ class InlineParser(MacroMixin):
                     src = src[len(g0):]
                     buffer.append(self._do_parse_link(link))
             else:
-                buffer.append(getattr(self, '_parse_%s' % inline_name)(groups))
+                buffer.append(getattr(self, '_parse_%s' % inline_name)(groups, environ))
                 src = src[len(g0):]
 
         return ''.join(buffer)
@@ -759,13 +764,13 @@ class InlineParser(MacroMixin):
             if k.find('_') < 0:
                 return k
 
-    def _parse_macro(self, groups):
-        return self.call_macro(groups)
+    def _parse_macro(self, groups, environ=None):
+        return self.call_macro(groups, environ)
 
-    def _parse_escape(self, groups):
+    def _parse_escape(self, groups, environ=None):
         return groups.escape
 
-    def _parse_autolink(self, groups):
+    def _parse_autolink(self, groups, environ=None):
         tag = groups.autolink_tag
         body = groups.autolink
         href, text = None, None
@@ -777,10 +782,10 @@ class InlineParser(MacroMixin):
             href = text
         return '<a href="%s">%s</a>' % (href, text)
 
-    def _parse_url(self, groups):
+    def _parse_url(self, groups, environ=None):
         return '<a href="{url}">{url}</a>'.format(url=escape(groups.url))
 
-    def _parse_tag(self, groups):
+    def _parse_tag(self, groups, environ=None):
         tag = groups.tag
         return escape(tag) if self.options.sanitize else tag
 
@@ -798,7 +803,7 @@ class InlineParser(MacroMixin):
                 title=' title="%s"' % escape(link.title) if link.title else ''
             )
 
-    def _parse_link(self, groups):
+    def _parse_link(self, groups, environ=None):
         link = pdict(
             text=groups.link_text,
             href=groups.link_href,
@@ -807,27 +812,27 @@ class InlineParser(MacroMixin):
 
         return self._do_parse_link(link)
 
-    def _parse_wikilink(self, groups):
+    def _parse_wikilink(self, groups, environ=None):
         return self.options.wikilink(groups)
 
-    def _parse_strong(self, groups):
+    def _parse_strong(self, groups, environ=None):
         text = groups.get('strong_1', None) or groups.get('strong_2', None)
-        return '<strong>%s</strong>' % self.parse(text)
+        return '<strong>%s</strong>' % self.parse(text, environ)
 
-    def _parse_em(self, groups):
+    def _parse_em(self, groups, environ=None):
         text = groups.get('em_1', None) or groups.get('em_2', None)
-        return '<em>%s</em>' % self.parse(text)
+        return '<em>%s</em>' % self.parse(text, environ)
 
-    def _parse_code(self, groups):
+    def _parse_code(self, groups, environ=None):
         return '<code>%s</code>' % escape(groups.code, True)
 
-    def _parse_del(self, groups):
+    def _parse_del(self, groups, environ=None):
         return '<del>%s</del>' % groups['del']
 
-    def _parse_br(self, groups):
+    def _parse_br(self, groups, environ=None):
         return '<br />'
 
-    def _parse_text(self, groups):
+    def _parse_text(self, groups, environ=None):
         return escape(self._smartypants(groups.text))
 
     def _smartypants(self, text):
@@ -851,11 +856,12 @@ class InlineParser(MacroMixin):
 class Parser(MacroMixin):
     def __init__(self, **options):
         self.logger = logging.getLogger("Parser")
-        self.options = pdict(defaults, **options)
-        for name, macro_class in self.options.get('macros', {}).items():
-            self.register_macro(name, macro_class)
 
-    def parse(self, text):
+        self.options = pdict(defaults, **options)
+        for name, func in self.options.get('macros', {}).items():
+            self.register_macro(name, func)
+
+    def parse(self, text, environ=None):
         doc = Lexer(self.options).lex(text)
         self.tokens = doc.tokens
         self.logger.debug(self.tokens)
@@ -871,15 +877,15 @@ class Parser(MacroMixin):
 
         buffer = []
         while self.__next() is not None:
-            html = self._do_parse()
+            html = self._do_parse(environ)
             buffer.append(html)
 
         if self.options.header_id and self.options.toc:
-            buffer.insert(0, self._parse_toc())
+            buffer.insert(0, self._parse_toc(environ))
 
         return ''.join(buffer)
 
-    def _parse_toc(self):
+    def _parse_toc(self, environ):
         if self.options.header_id and self.options.toc:
             if len(self.headers) == 0:
                 return ''
@@ -934,11 +940,11 @@ class Parser(MacroMixin):
             ret.extend(['</ul>', '</div>\n'])
             return '\n'.join(ret)
 
-    def _do_parse(self):
+    def _do_parse(self, environ=None):
         kind = self.token.kind
         func = getattr(self, '_parse_%s' % kind, None)
         if func:
-            return func()
+            return func(environ)
         else:
             self.logger.debug("Not found func for token: " + str(self.token))
 
@@ -949,13 +955,13 @@ class Parser(MacroMixin):
             self.token = None
         return self.token
 
-    def _parse_space(self):
+    def _parse_space(self, environ=None):
         return ''
 
-    def _parse_macro(self):
-        return self.inline.parse(self.call_macro(self.token))
+    def _parse_macro(self, environ=None):
+        return self.inline.parse(self.call_macro(self.token, environ))
 
-    def _parse_hr(self):
+    def _parse_hr(self, environ=None):
         return '<hr />\n'
 
     def __header_id(self):
@@ -963,7 +969,7 @@ class Parser(MacroMixin):
         self.header_id += 1
         return ret
 
-    def _parse_heading(self):
+    def _parse_heading(self, environ=None):
         if self.options.header_id:
             if self.token.depth < 5:
                 self.token.header_id = self.__header_id()
@@ -972,15 +978,15 @@ class Parser(MacroMixin):
                 self.token.header_id = None
             return '<h{depth}>{text}{header_id}</h{depth}>\n'.format(
                 depth=self.token.depth,
-                text=self.inline.parse(self.token.text),
+                text=self.inline.parse(self.token.text, environ),
                 header_id='<a name="%s"></a>' % self.token.header_id if self.token.header_id else ''
             )
         return '<h{depth}>{text}</h{depth}>\n'.format(
             depth=self.token.depth,
-            text=self.inline.parse(self.token.text)
+            text=self.inline.parse(self.token.text, environ)
         )
 
-    def _parse_code(self):
+    def _parse_code(self, environ=None):
         self.token.text = escape(self.token.text, self.token.get('escaped', True))
         lang = self.token.get('lang', None)
         if lang:
@@ -992,7 +998,7 @@ class Parser(MacroMixin):
             text=self.token.text
         )
 
-    def _parse_table(self):
+    def _parse_table(self, environ=None):
         body = ['<thead>\n<tr>\n']
         for i in range(len(self.token.header)):
             heading = self.inline.parse(self.token.header[i])
@@ -1016,61 +1022,61 @@ class Parser(MacroMixin):
 
         return '<table>\n%s</table>\n' % ''.join(body)
 
-    def _parse_blockquote_start(self):
+    def _parse_blockquote_start(self, environ=None):
         body = []
         while self.__next().kind != 'blockquote_end':
             body.append(self._do_parse())
         return '<blockquote>\n%s</blockquote>\n' % ''.join(body)
 
-    def _parse_list_start(self):
+    def _parse_list_start(self, environ=None):
         kind = 'ol' if self.token.ordered else 'ul'
 
         body = []
         while self.__next().kind != 'list_end':
-            body.append(self._do_parse())
+            body.append(self._do_parse(environ))
 
         return '<{kind}>\n{body}</{kind}>\n'.format(
             kind=kind,
             body=''.join(body)
         )
 
-    def _parse_list_item_start(self):
+    def _parse_list_item_start(self, environ=None):
         body = []
         while self.__next().kind != 'list_item_end':
             if self.token.kind == 'text':
-                body.append(self._do_parse_text())
+                body.append(self._do_parse_text(environ))
             else:
-                body.append(self._do_parse())
+                body.append(self._do_parse(environ))
 
         return '<li>%s</li>\n' % ''.join(body)
 
-    def _parse_loose_item_start(self):
+    def _parse_loose_item_start(self, environ=None):
         body = []
         while self.__next().kind != 'list_item_end':
-            body.append(self._do_parse())
+            body.append(self._do_parse(environ))
 
         return '<li>%s</li>\n' % ''.join(body)
 
-    def _parse_html(self):
+    def _parse_html(self, environ=None):
         if not self.token.pre:
-            return self.inline.parse(self.token.text)
+            return self.inline.parse(self.token.text, environ)
         else:
             return self.token.text
 
-    def _parse_paragraph(self):
-        return '<p>%s</p>\n' % self.inline.parse(self.token.text)
+    def _parse_paragraph(self, environ=None):
+        return '<p>%s</p>\n' % self.inline.parse(self.token.text, environ)
 
-    def _parse_text(self):
-        return '<p>%s</p>\n' % self._do_parse_text()
+    def _parse_text(self, environ=None):
+        return '<p>%s</p>\n' % self._do_parse_text(environ)
 
-    def _do_parse_text(self):
+    def _do_parse_text(self, environ=None):
         body = [self.token.text]
 
         while len(self.tokens) > 0 and self.tokens[0].kind == 'text':
             body.append('\n%s' % self.__next().text)
 
-        return self.inline.parse(''.join(body))
+        return self.inline.parse(''.join(body), environ)
 
 
-def marked(text, **options):
-    return Parser(**options).parse(text)
+def marked(text, environ=None, **options):
+    return Parser(**options).parse(text, environ)
